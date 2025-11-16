@@ -2,8 +2,8 @@ import User from "../model/User.model.js";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import sendVerificationEmail from "../utils/send-verificationEmail.js";
+import jwt from "jsonwebtoken"
 dotenv.config();
-
 
 const registerUser = async (req, res) => {
     //res.send("Registered");
@@ -79,5 +79,81 @@ const registerUser = async (req, res) => {
     }
 
 };
+
+const verifyUser = async (req , res) => 
+{
+    //get token from url
+    const {token} = req.params;
+    //validate token
+    if(!token) return res.status(400).json({message: "Invalid token"})
+    console.log("Token : "  , token)
+    //find user with token
+    const user = await User.findOne({verificationToken: token})
+    if(!user) return res.status(400).json({message: "Invalid User or Token"})
+    //if user not found , isVerified = false
+    //if user found  , isVerified = true
+    user.isVerified = true;
+    //remove token from db
+    user.verificationToken = undefined;
+    //save user
+    await user.save();
+    //return response
+    return res.status(200).json({message: "User verified succesfully"})
+}
+
+const loginUser = async (req , res) => {
+
+    const {email , password} =req.body;
+    //validate data
+    if(!email || !password){
+        return res.status(400).json({message: "All fields are required"});
+    }
+    //check user exist
+    try{
+        const user = await User.findOne({email});
+        if(!user){
+        return res.status(404).json({message: "User not found. Please register"});
+        }
+
+        //check password
+        const isMatch = await bcrypt.compare(password , user.password)
+        console.log(isMatch)
+
+        if(!isMatch){
+            return res.status(401).json({message: "Invalid credentials"});
+        }
+
+        //if user is there but not verified
+        if(!user.isVerified){
+            return res.status(401).json({message: "User not verified. Please verify your email"})
+        }
+
+        //generate jwt token
+        const token = jwt.sign({id : user._id} , "shhh" , {expiresIn : "24h"})
+
+        const cookieOptions = {
+            httpOnly: true,
+            secure: true,
+            maxAge: 24*60*60*1000
+        }
+
+        //get token in cookie
+
+        res.cookie("token" , token , cookieOptions)
+
+        //send success response
+        return res.status(200).json({message: "Login succesfull" , user : {
+            id : user._id,
+            name : user.name,
+            email : user.email,
+            role : user.role
+        } , token});
+
+    }catch(error){
+        return res.status(500).json({message: "Internal Server Error" , error : error.message});
+    }
+}
 export { registerUser }
+export { verifyUser }
+export { loginUser}
 

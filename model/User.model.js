@@ -1,4 +1,5 @@
 import mongoose from "mongoose";
+import bcrypt from "bcryptjs";
 
 
 const userSchema = new mongoose.Schema(
@@ -29,6 +30,15 @@ const userSchema = new mongoose.Schema(
     timestamps: true, //by Doing this mongoose is making createdAt , updatedAt
    }
 );
+
+//hooks are functions which are called before (pre) or after (post) certain activity/actions
+
+userSchema.pre("save" , async function(next){
+    if(this.isModified("password")){
+        this.password = await bcrypt.hash(this.password , 10);
+    }
+    next();
+})
 
 
 const User =  mongoose.model("User" , userSchema) //User is a model based on userSchema
